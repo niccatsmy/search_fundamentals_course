@@ -115,6 +115,7 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
 
     query_obj = {
     "size": 10,
+    "sort": sort_obj,
     "query": {
         "function_score": {
             "query": {
@@ -214,8 +215,7 @@ def create_query(user_query, filters, sort="_score", sortDir="desc"):
                 "field": "image.keyword"
             }
         }
-    },
-    "sort": sort_obj
+    }
     }
     
     return query_obj
