@@ -93,11 +93,9 @@ def query():
 
     print("query obj: {}".format(query_obj))
 
-    #### Step 4.b.ii
-    response = None   # TODO: Replace me with an appropriate call to OpenSearch
-    # Postprocess results here if you so desire
+    response = opensearch.search(body=query_obj, index="bbuy_products")
 
-    #print(response)
+    print(response)
     if error is None:
         return render_template("search_results.jinja2", query=user_query, search_response=response,
                                display_filters=display_filters, applied_filters=applied_filters,
@@ -108,14 +106,116 @@ def query():
 
 def create_query(user_query, filters, sort="_score", sortDir="desc"):
     print("Query: {} Filters: {} Sort: {}".format(user_query, filters, sort))
-    query_obj = {
-        'size': 10,
-        "query": {
-            "match_all": {} # Replace me with a query that both searches and filters
-        },
-        "aggs": {
-            #### Step 4.b.i: create the appropriate query and aggregations here
 
+    sort_obj = {
+            sort : {
+                "order": sortDir
+            }
+        }
+
+    query_obj = {
+    "size": 10,
+    "sort": sort_obj,
+    "query": {
+        "function_score": {
+            "query": {
+                "bool": {
+                    "must": {
+                        "query_string": {
+                            "query": user_query,
+                            "fields": [
+                                "name^100",
+                                "shortDescription^50",
+                                "longDescription^10",
+                                "department"
+                            ],
+                            "phrase_slop": 3
+                        }
+                    },
+                    "filter": filters
+                }
+            },
+            "boost_mode": "multiply",
+            "score_mode": "max",
+            "functions": [
+                {
+                    "field_value_factor": {
+                        "field": "salesRankLongTerm",
+                        "modifier": "reciprocal",
+                        "missing": 100000000
+                    }
+                },
+                {
+                    "field_value_factor": {
+                        "field": "salesRankMediumTerm",
+                        "modifier": "reciprocal",
+                        "missing": 100000000
+                    }
+                },
+                {
+                    "field_value_factor": {
+                        "field": "salesRankShortTerm",
+                        "modifier": "reciprocal",
+                        "missing": 100000000
+                    }
+                }
+            ],
+        }
+    },
+    "highlight": {
+        "fields": {
+            "name": {},
+            "shortDescription": {},
+            "longDescription": {}
+        }
+    },
+    "aggs": {
+        "regularPrice": {
+            "range": {
+                "field": "regularPrice",
+                "ranges": [
+                    {
+                        "key": "$",
+                        "to": 100
+                    },
+                    {
+                        "key": "$$",
+                        "from": 100,
+                        "to": 200
+                    },
+                    {
+                        "key": "$$$",
+                        "from": 200,
+                        "to": 300
+                    },
+                    {
+                        "key": "$$$$",
+                        "from": 300,
+                        "to": 400
+                    },
+                    {
+                        "key": "$$$$$",
+                        "from": 400,
+                        "to": 500
+                    },
+                    {
+                        "key": "$$$$$$",
+                        "from": 500
+                    }
+                ]
+            }
+        },
+        "department": {
+            "terms": {
+                "field": "department.keyword"
+            }
+        },
+        "missing_images": {
+            "missing": {
+                "field": "image.keyword"
+            }
         }
     }
+    }
+    
     return query_obj
